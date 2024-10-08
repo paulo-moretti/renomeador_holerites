@@ -6,6 +6,7 @@ import re
 from datetime import datetime
 from pdf2image import convert_from_path
 import pytesseract
+import hashlib
 
 def extrair_data_com_pdfplumber(pdf_path):
     with pdfplumber.open(pdf_path) as pdf:
@@ -33,18 +34,19 @@ def extrair_data_pagamento(pdf_path):
 
     return extrair_data_com_ocr(pdf_path)
 
-def arquivos_sao_iguais(arquivo1, arquivo2):
-    with pdfplumber.open(arquivo1) as pdf1, pdfplumber.open(arquivo2) as pdf2:
-        if len(pdf1.pages) != len(pdf2.pages):
-            return False
+def calcular_hash_arquivo(caminho_pdf):
+    hasher = hashlib.md5()
+    with open(caminho_pdf, 'rb') as file:
+        buf = file.read()
+        hasher.update(buf)
+    return hasher.hexdigest()
 
-        for page1, page2 in zip(pdf1.pages, pdf2.pages):
-            if page1.extract_text() != page2.extract_text():
-                return False
-    return True
+def arquivos_sao_iguais(arquivo1, arquivo2):
+    return calcular_hash_arquivo(arquivo1) == calcular_hash_arquivo(arquivo2)
 
 def renomear_arquivos_por_data(diretorio):
-    arquivos_processados = {}  
+    arquivos_processados = {} 
+
     for arquivo in os.listdir(diretorio):
         if arquivo.lower().endswith('.pdf'):
             caminho_pdf = os.path.join(diretorio, arquivo)
@@ -55,9 +57,9 @@ def renomear_arquivos_por_data(diretorio):
                 novo_nome = f'{data_formatada}.pdf'
                 caminho_novo_arquivo = os.path.join(diretorio, novo_nome)
 
-                if novo_nome in arquivos_processados:
-                    
-                    if arquivos_sao_iguais(caminho_pdf, arquivos_processados[novo_nome]):
+                if data_formatada in arquivos_processados:
+                    arquivo_existente = arquivos_processados[data_formatada]
+                    if arquivos_sao_iguais(caminho_pdf, arquivo_existente):
                         os.remove(caminho_pdf)
                         print(f'Arquivo duplicado removido: {arquivo}')
                     else:
@@ -65,7 +67,7 @@ def renomear_arquivos_por_data(diretorio):
                 else:
                     try:
                         os.rename(caminho_pdf, caminho_novo_arquivo)
-                        arquivos_processados[novo_nome] = caminho_novo_arquivo
+                        arquivos_processados[data_formatada] = caminho_novo_arquivo
                         print(f'Arquivo renomeado: {arquivo} -> {novo_nome}')
                     except FileExistsError:
                         print(f'Erro: o arquivo {novo_nome} já existe.')
